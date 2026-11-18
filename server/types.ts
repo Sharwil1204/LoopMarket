@@ -1,0 +1,3 @@
+export interface Statement {bind(...values: any[]):Statement; first<T=any>():Promise<T|null>; all<T=any>():Promise<{results:T[]}>; run():Promise<{meta:{changes:number}}>}
+export interface Database {prepare(sql:string):Statement; batch(stmts:Statement[]):Promise<any[]>}
+export interface Env {DB:Database; BUCKET:{put(key:string,value:ArrayBuffer|Uint8Array,options?:any):Promise<any>;get(key:string):Promise<any>}; ASSETS?:{fetch(request:Request):Promise<Response>}; DEMO_MODE?:string; DEMO_ADMIN_ENABLED?:string; UNIVERSITY_EMAIL_DOMAINS?:string; OWNER_SETUP_TOKEN_HASH?:string; OWNER_SETUP_EXPIRES_AT?:string; LOCAL?:boolean}

@@ -1,0 +1,28 @@
+node_modules/
+dist/
+.data/
+.env
+.env.*
+!.env.example
+.sites-runtime/
+.wrangler/
+.vercel/
+.openai/
+outputs/
+*.log
+
+# Old Cloudflare artifacts
+hosting.json
+
+# Loose duplicates in root
+api (1).ts
+/build-worker.mjs
+/create-owner-invitation.mjs
+/integration.ts
+/local-db.ts
+/manrope.ttf
+/owner-setup.tsx
+/package-source.mjs
+/seed.ts
+public/*.jpg.jpeg
+public/manrope.ttf
