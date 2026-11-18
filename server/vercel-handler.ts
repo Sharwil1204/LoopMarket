@@ -1,6 +1,5 @@
 import type {IncomingMessage, ServerResponse} from 'node:http';
 import {handleApi} from './api';
-import {openDatabase} from './local-db';
 import {openPostgresDatabase} from './pg-db';
 import {createBlobStorage} from './blob-storage';
 import {seed} from './seed';
@@ -9,6 +8,13 @@ import type {Env} from './types';
 let cachedEnv: Env | null = null;
 let initPromise: Promise<Env> | null = null;
 let closeDbFn: (() => Promise<void> | void) | null = null;
+
+export class DatabaseConfigurationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'DatabaseConfigurationError';
+  }
+}
 
 export async function closeEnv(): Promise<void> {
   if (closeDbFn) {
@@ -25,14 +31,21 @@ export async function getEnv(): Promise<Env> {
 
   initPromise = (async () => {
     const isPostgres = !!(process.env.POSTGRES_URL || process.env.DATABASE_URL);
+    const isVercel = !!(process.env.VERCEL || process.env.VERCEL_ENV);
     let db: Env['DB'];
 
     if (isPostgres) {
       const pg = await openPostgresDatabase();
       db = pg.db;
       closeDbFn = () => pg.close();
+    } else if (isVercel) {
+      // On Vercel, never fall back to SQLite or serverless filesystem storage
+      throw new DatabaseConfigurationError(
+        'Production database is not configured. Please connect Neon PostgreSQL (or configure POSTGRES_URL) in your Vercel project settings.'
+      );
     } else {
-      // Fallback for local development or testing
+      // Local development or test runner only: load SQLite dynamically so node:sqlite is never bundled on Vercel
+      const {openDatabase} = await import('./local-db');
       const sqlite = await openDatabase(process.env.DATABASE_PATH || '.data/loopmarket.sqlite');
       db = sqlite.db;
       closeDbFn = () => sqlite.close();
@@ -48,16 +61,19 @@ export async function getEnv(): Promise<Env> {
       UNIVERSITY_EMAIL_DOMAINS: process.env.UNIVERSITY_EMAIL_DOMAINS || '',
       OWNER_SETUP_TOKEN_HASH: process.env.OWNER_SETUP_TOKEN_HASH,
       OWNER_SETUP_EXPIRES_AT: process.env.OWNER_SETUP_EXPIRES_AT,
-      LOCAL: !isPostgres && process.env.NODE_ENV !== 'production',
+      LOCAL: !isPostgres && process.env.NODE_ENV !== 'production' && !isVercel,
     };
 
-    if (env.DEMO_MODE === 'true') {
+    if (env.DEMO_MODE === 'true' && !isVercel) {
       await seed(env);
     }
 
     cachedEnv = env;
     return env;
-  })();
+  })().catch(err => {
+    initPromise = null;
+    throw err;
+  });
 
   return initPromise;
 }
@@ -152,12 +168,13 @@ export async function handleVercelRequest(req: IncomingMessage, res: ServerRespo
 
     const responseBytes = Buffer.from(await webResponse.arrayBuffer());
     res.end(responseBytes);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Vercel API error:', error);
     if (!res.headersSent) {
-      res.statusCode = 500;
+      const isDbConfigError = error instanceof DatabaseConfigurationError || error?.name === 'DatabaseConfigurationError';
+      res.statusCode = isDbConfigError ? 503 : 500;
       res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({error: 'The server could not process this request.'}));
+      res.end(JSON.stringify({error: error?.message || 'The server could not process this request.'}));
     }
   }
 }

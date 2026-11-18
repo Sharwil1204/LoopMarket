@@ -339,6 +339,94 @@ try {
   const demoUsersCheck = await prodEnv.DB.prepare('SELECT COUNT(*) count FROM users WHERE demo=1').first();
   expect((demoUsersCheck?.count ?? 0) === 0, 'No demo users seeded when DEMO_MODE=false');
 
+  // 11. Test missing PostgreSQL credentials on Vercel (clean 503 JSON)
+  console.log('Testing missing PostgreSQL credentials on Vercel...');
+  await closeEnv();
+  process.env.VERCEL = '1';
+  delete process.env.POSTGRES_URL;
+  delete process.env.DATABASE_URL;
+
+  const vclMissingDbRes = await dispatchVercel('GET', '/api/config');
+  expect(vclMissingDbRes.status === 503, 'Missing DB credentials on Vercel returns HTTP 503');
+  expect(vclMissingDbRes.data.error.includes('Production database is not configured'), 'Error message instructs setting POSTGRES_URL');
+  expect(vclMissingDbRes.headers['content-type'] === 'application/json', 'Returns clean JSON content-type, not plain text');
+
+  delete process.env.VERCEL;
+  await closeEnv();
+
+  // 12. Verify PostgreSQL schema is bundled in code (zero-disk-read guarantee)
+  console.log('Testing embedded PostgreSQL schema bundle...');
+  const {POSTGRES_SCHEMA_SQL} = await import('../server/postgres-schema-sql');
+  expect(typeof POSTGRES_SCHEMA_SQL === 'string' && POSTGRES_SCHEMA_SQL.length > 2000, 'Embedded schema string is present and complete');
+  expect(POSTGRES_SCHEMA_SQL.includes('CREATE TABLE IF NOT EXISTS users'), 'Schema includes users table');
+  expect(POSTGRES_SCHEMA_SQL.includes('CREATE TABLE IF NOT EXISTS listings'), 'Schema includes listings table');
+  expect(POSTGRES_SCHEMA_SQL.includes('prevent_conflicting_acceptance'), 'Schema includes rental conflict trigger');
+
+  // 13. Test frontend api() resilience to non-JSON responses
+  console.log('Testing frontend api() error parsing resilience...');
+  const {api} = await import('../src/api');
+  const originalFetch = globalThis.fetch;
+
+  try {
+    // 500 plain text error (reproducing Vercel FUNCTION_INVOCATION_FAILED)
+    globalThis.fetch = async () => new Response('A server error has occurred\nFUNCTION_INVOCATION_FAILED', {
+      status: 500,
+      headers: {'Content-Type': 'text/plain'},
+    });
+    await assert.rejects(
+      async () => api('/test-500'),
+      /A server error occurred \(500\)/,
+      'api() cleanly handles Vercel plain text 500 error instead of throwing JSON parse error'
+    );
+    checks++;
+
+    // 503 service unavailable
+    globalThis.fetch = async () => new Response('Service Unavailable', {
+      status: 503,
+      headers: {'Content-Type': 'text/plain'},
+    });
+    await assert.rejects(
+      async () => api('/test-503'),
+      /Service temporarily unavailable \(503\)/,
+      'api() cleanly handles 503 service unavailable'
+    );
+    checks++;
+
+    // 404 HTML response
+    globalThis.fetch = async () => new Response('<html>404 Not Found</html>', {
+      status: 404,
+      headers: {'Content-Type': 'text/html'},
+    });
+    await assert.rejects(
+      async () => api('/test-404'),
+      /Request failed \(404\)/,
+      'api() cleanly handles HTML 404 error'
+    );
+    checks++;
+
+    // Standard JSON error response
+    globalThis.fetch = async () => new Response(JSON.stringify({error: 'Invalid email address'}), {
+      status: 400,
+      headers: {'Content-Type': 'application/json'},
+    });
+    await assert.rejects(
+      async () => api('/test-json-error'),
+      /Invalid email address/,
+      'api() preserves existing JSON error parsing'
+    );
+    checks++;
+
+    // Successful JSON response
+    globalThis.fetch = async () => new Response(JSON.stringify({success: true}), {
+      status: 200,
+      headers: {'Content-Type': 'application/json'},
+    });
+    const successRes = await api('/test-success');
+    expect(successRes.success === true, 'api() returns parsed JSON on 200');
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+
   prodStorage.close();
   await rm(prodDbDir, {recursive: true, force: true});
 

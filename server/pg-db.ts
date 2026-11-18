@@ -1,5 +1,5 @@
 import pg from 'pg';
-import {readFile} from 'node:fs/promises';
+import {POSTGRES_SCHEMA_SQL} from './postgres-schema-sql';
 import type {Database,Statement} from './types';
 
 const {Pool} = pg;
@@ -94,8 +94,7 @@ export async function openPostgresDatabase(connectionString?: string) {
       "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users'"
     );
     if (check.rowCount === 0) {
-      const schemaSql = await readFile(new URL('./postgres-schema.sql', import.meta.url), 'utf8');
-      await initClient.query(schemaSql);
+      await initClient.query(POSTGRES_SCHEMA_SQL);
     }
   } finally {
     initClient.release();
