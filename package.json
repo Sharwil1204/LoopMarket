@@ -12,7 +12,8 @@
     "start": "node --env-file-if-exists=.env --import tsx server/local.ts --production",
     "test": "tsx tests/integration.ts && tsx tests/vercel-postgres.test.ts",
     "db:migrate": "node --env-file-if-exists=.env --import tsx server/migrate-postgres.ts",
-    "owner:invite": "node scripts/create-owner-invitation.mjs"
+    "owner:invite": "node scripts/create-owner-invitation.mjs",
+    "verify:prod": "node scripts/verify-production.mjs"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

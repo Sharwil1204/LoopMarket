@@ -102,9 +102,17 @@ export async function handleApi(req:Request,env:Env):Promise<Response>{
   const b=await body(req),email=text(b.email,'Email',3,254).toLowerCase();await rateLimit(env,'login:'+email);
   const u=await env.DB.prepare('SELECT * FROM users WHERE email=?').bind(email).first();
   const candidate=await hash(typeof b.password==='string'?b.password:'',u?.salt||'invalid-account-timing-salt');
-  if(!u?.password_hash||!equal(candidate,u.password_hash))fail(401,'Unable to log in with these details.');
-  if(u.status==='suspended')fail(403,'This account is suspended. Contact your campus moderator.');
-  await env.DB.prepare('DELETE FROM auth_attempts WHERE key=?').bind('login:'+email).run();return session(req,env,u);
+  if(!u?.password_hash||!equal(candidate,u.password_hash)){
+   if(u)await audit(env,u.id,'auth.failed',u.id,'Failed sign-in attempt: incorrect password').run();
+   fail(401,'Unable to log in with these details.');
+  }
+  if(u.status==='suspended'){
+   await audit(env,u.id,'auth.blocked',u.id,'Blocked sign-in attempt: account is suspended').run();
+   fail(403,'This account is suspended. Contact your campus moderator.');
+  }
+  await env.DB.prepare('DELETE FROM auth_attempts WHERE key=?').bind('login:'+email).run();
+  await audit(env,u.id,'auth.login',u.id,'Signed in successfully').run();
+  return session(req,env,u);
  }
  if(p==='/api/auth/demo'&&method==='POST'){
   if(env.DEMO_MODE!=='true')fail(404,'Demo access is disabled.');const b=await body(req);const role=choice(b.role,['student','seller','admin'],'demo account');
@@ -199,7 +207,7 @@ export async function handleApi(req:Request,env:Env):Promise<Response>{
   const users=(await env.DB.prepare('SELECT id,name,email,student_id,role,status,reason,demo,created_at FROM users ORDER BY created_at DESC').all()).results;
   const list=(await env.DB.prepare('SELECT l.*,u.name seller_name FROM listings l JOIN users u ON u.id=l.owner_id ORDER BY l.created_at DESC').all()).results;
   const reports=(await env.DB.prepare('SELECT r.*,l.title,u.name reporter_name FROM reports r JOIN listings l ON l.id=r.listing_id JOIN users u ON u.id=r.reporter_id ORDER BY r.created_at DESC').all()).results;
-  const logs=(await env.DB.prepare('SELECT a.*,u.name actor_name FROM audit_records a JOIN users u ON u.id=a.actor_id ORDER BY a.created_at DESC LIMIT 100').all()).results;
+  const logs=(await env.DB.prepare('SELECT a.*,COALESCE(u.name,a.actor_id) actor_name FROM audit_records a LEFT JOIN users u ON u.id=a.actor_id ORDER BY a.created_at DESC LIMIT 100').all()).results;
   return json({users,listings:await images(env,list),reports,audit:logs});
  }
  m=p.match(/^\/api\/admin\/users\/([^/]+)$/);

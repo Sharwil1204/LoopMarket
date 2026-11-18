@@ -275,6 +275,11 @@ try {
   expect(studentLoginRes.status === 200, 'Student logs in successfully');
   expect(studentLoginRes.data.user.status === 'approved', 'Student status is now approved');
 
+  // Verify login activity is recorded in admin audit log
+  const auditCheckRes = await dispatchVercel('GET', '/api/admin', {cookie: ownerCookie});
+  const loginAudit = auditCheckRes.data.audit.find((a: any) => a.action === 'auth.login');
+  expect(loginAudit !== undefined, 'Login activity recorded in audit trail with timestamp and status');
+
   // Now suspend student
   const suspendRes = await dispatchVercel('POST', '/api/admin/users/' + studentUser.id, {cookie: ownerCookie}, {
     status: 'suspended',
