@@ -30,7 +30,7 @@ const q3 = convertSqliteToPostgres("INSERT OR IGNORE INTO favourites(user_id, li
 expect(q3.includes('INSERT INTO favourites(user_id, listing_id) VALUES($1, $2) ON CONFLICT DO NOTHING'), 'Converts INSERT OR IGNORE to ON CONFLICT DO NOTHING');
 
 const q4 = convertSqliteToPostgres("INSERT INTO auth_attempts(key,attempts,window_start) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET attempts=attempts+1");
-expect(q4.includes('VALUES($1,1,$2)') && q4.includes('ON CONFLICT(key) DO UPDATE SET attempts=attempts+1'), 'Preserves ON CONFLICT DO UPDATE clause');
+expect(q4.includes('VALUES($1,1,$2)') && q4.includes('ON CONFLICT(key) DO UPDATE SET attempts = auth_attempts.attempts + 1'), 'Preserves ON CONFLICT DO UPDATE clause');
 
 const q5 = convertSqliteToPostgres("SELECT * FROM t WHERE str = 'What? Why?' AND id = ?");
 expect(q5 === "SELECT * FROM t WHERE str = 'What? Why?' AND id = $1", 'Does not convert question marks inside quoted strings');

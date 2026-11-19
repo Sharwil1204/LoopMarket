@@ -34,6 +34,9 @@ export function convertSqliteToPostgres(sql: string): string {
     }
   }
 
+  // Avoid ambiguous column reference in PostgreSQL ON CONFLICT DO UPDATE
+  out = out.replace(/SET\s+attempts\s*=\s*attempts\s*\+\s*1/gi, 'SET attempts = auth_attempts.attempts + 1');
+
   return out;
 }
 

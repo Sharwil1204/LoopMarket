@@ -44,7 +44,7 @@ async function listingInput(b:any,u:any,env:Env,old?:any){
 async function rateLimit(env:Env,key:string){
  const start=new Date(Date.now()-15*60*1000).toISOString();
  await env.DB.prepare('DELETE FROM auth_attempts WHERE window_start<?').bind(start).run();
- await env.DB.prepare('INSERT INTO auth_attempts(key,attempts,window_start) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET attempts=attempts+1').bind(key,now()).run();
+ await env.DB.prepare('INSERT INTO auth_attempts(key,attempts,window_start) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET attempts=auth_attempts.attempts+1').bind(key,now()).run();
  const attempt=await env.DB.prepare('SELECT attempts FROM auth_attempts WHERE key=?').bind(key).first();if(attempt.attempts>20)fail(429,'Too many attempts. Please try again in 15 minutes.');
 }
 async function ownerInvitation(req:Request,env:Env){

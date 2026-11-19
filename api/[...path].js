@@ -150,7 +150,7 @@ async function listingInput(b, u, env, old) {
 async function rateLimit(env, key) {
   const start = new Date(Date.now() - 15 * 60 * 1e3).toISOString();
   await env.DB.prepare("DELETE FROM auth_attempts WHERE window_start<?").bind(start).run();
-  await env.DB.prepare("INSERT INTO auth_attempts(key,attempts,window_start) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET attempts=attempts+1").bind(key, now()).run();
+  await env.DB.prepare("INSERT INTO auth_attempts(key,attempts,window_start) VALUES(?,1,?) ON CONFLICT(key) DO UPDATE SET attempts=auth_attempts.attempts+1").bind(key, now()).run();
   const attempt = await env.DB.prepare("SELECT attempts FROM auth_attempts WHERE key=?").bind(key).first();
   if (attempt.attempts > 20) fail(429, "Too many attempts. Please try again in 15 minutes.");
 }
@@ -856,6 +856,7 @@ function convertSqliteToPostgres(sql) {
       out += " ON CONFLICT DO NOTHING";
     }
   }
+  out = out.replace(/SET\s+attempts\s*=\s*attempts\s*\+\s*1/gi, "SET attempts = auth_attempts.attempts + 1");
   return out;
 }
 var PgQuery = class {
