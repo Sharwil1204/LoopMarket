@@ -113,24 +113,33 @@ export async function handleVercelRequest(req: IncomingMessage, res: ServerRespo
     const host = (req.headers['x-forwarded-host'] as string) || (req.headers['host'] as string) || 'localhost';
     const origin = `${proto}://${host}`;
 
-    let pathname = (req.headers['x-forwarded-url'] as string) || (req.headers['x-matched-path'] as string) || req.url || '/api';
+    let rawPath = (req.headers['x-forwarded-url'] as string) || (req.headers['x-matched-path'] as string) || req.url || '/api';
+    if (rawPath.startsWith('http://') || rawPath.startsWith('https://')) {
+      try {
+        const u = new URL(rawPath);
+        rawPath = u.pathname + u.search;
+      } catch {}
+    }
+
+    let pathname = rawPath;
+    const queryIndex = pathname.indexOf('?');
+    const queryString = queryIndex !== -1 ? pathname.slice(queryIndex) : '';
+    if (queryIndex !== -1) {
+      pathname = pathname.slice(0, queryIndex);
+    }
+
     if ((pathname === '/api' || pathname === '/api/') && (req as any).query?.path) {
       const sub = Array.isArray((req as any).query.path)
         ? (req as any).query.path.join('/')
         : (req as any).query.path;
       pathname = '/api/' + sub;
     }
+
     if (!pathname.startsWith('/api')) {
       pathname = '/api' + (pathname.startsWith('/') ? pathname : '/' + pathname);
     }
 
-    const queryIndex = (req.url || '').indexOf('?');
-    const queryString = queryIndex !== -1 ? req.url!.slice(queryIndex) : '';
-    if (!pathname.includes('?') && queryString) {
-      pathname += queryString;
-    }
-
-    const fullUrl = `${origin}${pathname}`;
+    const fullUrl = `${origin}${pathname}${queryString}`;
 
     const headers = new Headers();
     for (const [key, value] of Object.entries(req.headers)) {
