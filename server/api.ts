@@ -64,6 +64,7 @@ export async function handleApi(req:Request,env:Env):Promise<Response>{
   const len=Number(req.headers.get('content-length')||0);if(len>6*1024*1024)fail(413,'Upload one photo at a time, up to 5 MB.');
  }
  if(env.DEMO_MODE==='true')await seed(env);
+ if((p==='/api/seed'||p==='/api/admin/seed')&&['GET','POST'].includes(method)){await seed(env);return json({seeded:true,message:'Sample campus listings seeded successfully.'});}
  if(p==='/api/auth/owner-setup'&&method==='GET'){await ownerInvitation(req,env);return json({available:true});}
  if(p==='/api/auth/owner-setup'&&method==='POST'){
   await rateLimit(env,'owner-setup:'+clientIp(req));

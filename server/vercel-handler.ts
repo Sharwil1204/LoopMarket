@@ -65,7 +65,7 @@ export async function getEnv(): Promise<Env> {
       LOCAL: !isPostgres && process.env.NODE_ENV !== 'production' && !isVercel,
     };
 
-    if (env.DEMO_MODE === 'true' && !isVercel) {
+    if (env.DEMO_MODE === 'true') {
       await seed(env);
     }
 

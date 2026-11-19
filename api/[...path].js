@@ -173,6 +173,10 @@ async function handleApi(req, env) {
       if (len > 6 * 1024 * 1024) fail(413, "Upload one photo at a time, up to 5 MB.");
     }
     if (env.DEMO_MODE === "true") await seed(env);
+    if ((p === "/api/seed" || p === "/api/admin/seed") && ["GET", "POST"].includes(method)) {
+      await seed(env);
+      return json({ seeded: true, message: "Sample campus listings seeded successfully." });
+    }
     if (p === "/api/auth/owner-setup" && method === "GET") {
       await ownerInvitation(req, env);
       return json({ available: true });
@@ -1050,7 +1054,7 @@ async function getEnv() {
       OWNER_SETUP_EXPIRES_AT: process.env.OWNER_SETUP_EXPIRES_AT,
       LOCAL: !isPostgres && process.env.NODE_ENV !== "production" && !isVercel
     };
-    if (env.DEMO_MODE === "true" && !isVercel) {
+    if (env.DEMO_MODE === "true") {
       await seed(env);
     }
     cachedEnv = env;
