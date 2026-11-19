@@ -45,7 +45,8 @@ export async function getEnv(): Promise<Env> {
       );
     } else {
       // Local development or test runner only: load SQLite dynamically so node:sqlite is never bundled on Vercel
-      const {openDatabase} = await import('./local-db');
+      const localDbMod = './local-db';
+      const {openDatabase} = await import(/* @vite-ignore */ localDbMod);
       const sqlite = await openDatabase(process.env.DATABASE_PATH || '.data/loopmarket.sqlite');
       db = sqlite.db;
       closeDbFn = () => sqlite.close();
