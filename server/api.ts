@@ -226,6 +226,6 @@ export async function handleApi(req:Request,env:Env):Promise<Response>{
   const msg=String(e?.message||'');
   if(/overlap|already has an accepted|outside availability|participant is unavailable|agreed terms/.test(msg))return json({error:msg.replace(/^.*?: /,'')},409);
   if(/UNIQUE constraint|unique constraint/i.test(msg))return json({error:'This record already exists or the request has already been submitted. Refresh to see the latest state.'},409);
-  console.error('LoopMarket API error',msg);return json({error:'Unable to complete the request. Your changes were not confirmed; please try again.'},500);
+  console.error('LoopMarket API error',msg);return json({error:msg||'Unable to complete the request. Your changes were not confirmed; please try again.'},500);
  }
 }

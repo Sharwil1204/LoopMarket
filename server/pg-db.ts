@@ -87,15 +87,10 @@ export async function openPostgresDatabase(connectionString?: string) {
     connectionTimeoutMillis: 5000,
   });
 
-  // Ensure tables and triggers exist
+  // Ensure all tables, indexes and constraints exist
   const initClient = await pool.connect();
   try {
-    const check = await initClient.query(
-      "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users'"
-    );
-    if (check.rowCount === 0) {
-      await initClient.query(POSTGRES_SCHEMA_SQL);
-    }
+    await initClient.query(POSTGRES_SCHEMA_SQL);
   } finally {
     initClient.release();
   }

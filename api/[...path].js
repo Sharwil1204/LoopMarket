@@ -503,7 +503,7 @@ async function handleApi(req, env) {
     if (/overlap|already has an accepted|outside availability|participant is unavailable|agreed terms/.test(msg)) return json({ error: msg.replace(/^.*?: /, "") }, 409);
     if (/UNIQUE constraint|unique constraint/i.test(msg)) return json({ error: "This record already exists or the request has already been submitted. Refresh to see the latest state." }, 409);
     console.error("LoopMarket API error", msg);
-    return json({ error: "Unable to complete the request. Your changes were not confirmed; please try again." }, 500);
+    return json({ error: msg || "Unable to complete the request. Your changes were not confirmed; please try again." }, 500);
   }
 }
 
@@ -904,12 +904,7 @@ async function openPostgresDatabase(connectionString) {
   });
   const initClient = await pool.connect();
   try {
-    const check = await initClient.query(
-      "SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'users'"
-    );
-    if (check.rowCount === 0) {
-      await initClient.query(POSTGRES_SCHEMA_SQL);
-    }
+    await initClient.query(POSTGRES_SCHEMA_SQL);
   } finally {
     initClient.release();
   }
